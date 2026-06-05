@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PLAYER_ONE
+  ISRAEL
+}
+
+enum Direction {
+  FRONT
+  BACK
+}
+
+enum GameMode {
+  BASE
+  SPACED_LIST
+  SPACED_GLOBAL
+  BASE_WRITTEN
+  SPACED_LIST_WRITTEN
+  SPACED_GLOBAL_WRITTEN
+}
+
+model User {
+  id                  String              @id @default(cuid())
+  displayName         String              @unique
+  role                Role                @unique
+  attempts            Attempt[]
+  sessions            GameSession[]
+  goals               Goal[]
+  achievementUnlocks  AchievementUnlock[]
+}
+
+model StudyList {
+  id        String        @id @default(cuid())
+  title     String
+  color     String        @default("#7c3aed")
+  deletedAt DateTime?
+  createdAt DateTime      @default(now())
+  cards     Card[]
+  sessions  GameSession[]
+  goals     Goal[]
+}
+
+model Card {
+  id        String     @id @default(cuid())
+  listId    String
+  front     String
+  back      String
+  createdAt DateTime   @default(now())
+  list      StudyList  @relation(fields: [listId], references: [id], onDelete: Cascade)
+  attempts  Attempt[]
+}
+
+model Attempt {
+  id        String    @id @default(cuid())
+  userId    String
+  cardId    String
+  sessionId String?
+  direction Direction
+  correct   Boolean
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+  card      Card      @relation(fields: [cardId], references: [id])
+  session   GameSession? @relation(fields: [sessionId], references: [id])
+}
+
+model GameSession {
+  id              String    @id @default(cuid())
+  userId          String
+  listId          String?
+  listTitle       String
+  mode            GameMode
+  direction       Direction
+  points          Float
+  accuracy        Float
+  correctCount    Int
+  totalCount      Int
+  longestStreak   Int
+  antiGrind       Boolean   @default(false)
+  playedAt        DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id])
+  list            StudyList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  attempts        Attempt[]
+}
+
+model Goal {
+  id         String     @id @default(cuid())
+  userId     String
+  listId     String?
+  target     Float
+  achievedAt DateTime?
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id])
+  list       StudyList? @relation(fields: [listId], references: [id], onDelete: Cascade)
+}
+
+model AchievementUnlock {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, achievementId])
+}
