@@ -4,7 +4,7 @@ MyMemo e um app web mobile-first de estudos por flash cards com perfil gamificad
 
 ## Requisitos
 
-- Node.js 22+ recomendado (testado com Node 24)
+- Node.js 22+ recomendado
 - npm 10+
 - PostgreSQL 14+
 
