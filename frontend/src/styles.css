@@ -96,7 +96,9 @@ button:disabled {
 .session-meta,
 .answer-row,
 .inline,
-.goal-editor {
+.goal-editor,
+.list-heading,
+.card-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -699,6 +701,21 @@ textarea {
   border-left-width: 6px;
 }
 
+.list-heading {
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+}
+
+.list-heading strong,
+.list-heading small {
+  display: block;
+}
+
+.list-heading button {
+  min-width: max-content;
+}
+
 .inline {
   align-items: stretch;
 }
@@ -706,6 +723,36 @@ textarea {
 .inline button {
   width: 48px;
   padding: 0;
+}
+
+.card-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.card-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(80, 96, 133, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+:root[data-theme="dark"] .card-row {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.card-row textarea {
+  min-height: 74px;
+}
+
+.card-actions {
+  justify-content: end;
+}
+
+.card-actions button {
+  min-height: 40px;
 }
 
 .ghostline {
@@ -815,6 +862,16 @@ textarea {
 
   .history small {
     grid-column: 2;
+  }
+
+  .card-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: stretch;
+  }
+
+  .card-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .calendar {

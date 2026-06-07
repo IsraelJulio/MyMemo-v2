@@ -438,19 +438,10 @@ function Manage({ lists, player, refresh, celebrate }: { lists: List[]; player: 
   const [title, setTitle] = useState("");
   const [target, setTarget] = useState(90);
   const [selected, setSelected] = useState("");
-  const [front, setFront] = useState("");
-  const [back, setBack] = useState("");
 
   async function createList() {
     await request("/lists", { method: "POST", body: JSON.stringify({ title, cards: [] }) }, player);
     setTitle("");
-    refresh();
-  }
-
-  async function addCard(listId: string) {
-    await request(`/lists/${listId}/cards`, { method: "POST", body: JSON.stringify({ front, back }) }, player);
-    setFront("");
-    setBack("");
     refresh();
   }
 
@@ -470,14 +461,95 @@ function Manage({ lists, player, refresh, celebrate }: { lists: List[]; player: 
       </div>
       <div className="list-admin">
         {lists.map((list) => (
-          <article key={list.id} style={{ borderColor: list.color }}>
-            <strong>{list.title}</strong><small>{list._count?.cards ?? 0} cards</small>
-            <div className="inline"><input placeholder="Frente" value={front} onChange={(e) => setFront(e.target.value)} /><input placeholder="Verso" value={back} onChange={(e) => setBack(e.target.value)} /><button onClick={() => addCard(list.id)}><Plus /></button></div>
-            <button className="danger ghostline" onClick={async () => { await request(`/lists/${list.id}`, { method: "DELETE" }, player); refresh(); }}><Trash2 /> Apagar</button>
-          </article>
+          <ListAdminItem key={list.id} list={list} player={player} refresh={refresh} />
         ))}
       </div>
     </section>
+  );
+}
+
+function ListAdminItem({ list, player, refresh }: { list: List; player: Player; refresh: () => Promise<void> }) {
+  const [cards, setCards] = useState<Card[]>(list.cards ?? []);
+  const [front, setFront] = useState("");
+  const [back, setBack] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    request<List>(`/lists/${list.id}`, {}, player)
+      .then((detail) => {
+        if (active) setCards(detail.cards ?? []);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [list.id, player]);
+
+  function updateDraft(cardId: string, field: "front" | "back", value: string) {
+    setCards((current) => current.map((card) => card.id === cardId ? { ...card, [field]: value } : card));
+  }
+
+  async function addCard() {
+    if (!front.trim() || !back.trim()) return;
+    const card = await request<Card>(`/lists/${list.id}/cards`, { method: "POST", body: JSON.stringify({ front, back }) }, player);
+    setCards((current) => [...current, card]);
+    setFront("");
+    setBack("");
+    refresh();
+  }
+
+  async function saveCard(card: Card) {
+    setSavingId(card.id);
+    try {
+      const saved = await request<Card>(`/cards/${card.id}`, { method: "PUT", body: JSON.stringify({ front: card.front, back: card.back }) }, player);
+      setCards((current) => current.map((item) => item.id === card.id ? saved : item));
+    } finally {
+      setSavingId("");
+    }
+  }
+
+  async function deleteCard(cardId: string) {
+    await request(`/cards/${cardId}`, { method: "DELETE" }, player);
+    setCards((current) => current.filter((card) => card.id !== cardId));
+    refresh();
+  }
+
+  return (
+    <article style={{ borderColor: list.color }}>
+      <div className="list-heading">
+        <div>
+          <strong>{list.title}</strong>
+          <small>{cards.length || list._count?.cards || 0} cards</small>
+        </div>
+        <button className="danger ghostline" onClick={async () => { await request(`/lists/${list.id}`, { method: "DELETE" }, player); refresh(); }}><Trash2 /> Apagar lista</button>
+      </div>
+
+      <div className="inline">
+        <input placeholder="Frente" value={front} onChange={(e) => setFront(e.target.value)} />
+        <input placeholder="Verso" value={back} onChange={(e) => setBack(e.target.value)} />
+        <button disabled={!front.trim() || !back.trim()} onClick={addCard} title="Adicionar card"><Plus /></button>
+      </div>
+
+      <div className="card-editor">
+        {loading && <small>Carregando cards...</small>}
+        {!loading && cards.length === 0 && <small>Nenhum card nesta lista ainda.</small>}
+        {cards.map((card) => (
+          <div className="card-row" key={card.id}>
+            <textarea aria-label="Frente do card" value={card.front} onChange={(e) => updateDraft(card.id, "front", e.target.value)} />
+            <textarea aria-label="Verso do card" value={card.back} onChange={(e) => updateDraft(card.id, "back", e.target.value)} />
+            <div className="card-actions">
+              <button disabled={savingId === card.id || !card.front.trim() || !card.back.trim()} onClick={() => saveCard(card)}><Check /> Salvar</button>
+              <button className="danger ghostline" onClick={() => deleteCard(card.id)}><Trash2 /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
