@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import confetti from "canvas-confetti";
 import {
@@ -11,6 +11,7 @@ import {
   Download,
   Edit3,
   Flame,
+  Lightbulb,
   LogIn,
   LogOut,
   Medal,
@@ -34,6 +35,7 @@ type GameMode = "BASE" | "SPACED_LIST" | "SPACED_GLOBAL" | "BASE_WRITTEN" | "SPA
 type Card = { id: string; front: string; back: string; listId: string; list?: List };
 type List = { id: string; title: string; color: string; _count?: { cards: number }; cards?: Card[] };
 type Session = { id: string; listTitle: string; mode: GameMode; direction: Direction; points: number; accuracy: number; playedAt: string; user: { displayName: string }; correctCount: number; totalCount: number; antiGrind: boolean };
+type Hint = { id: string; text: string };
 type Dashboard = {
   sessions: Session[];
   lists: List[];
@@ -164,6 +166,56 @@ function LoginButton({ player, setPlayer }: { player: Player; setPlayer: (player
   );
 }
 
+function AutoFitText({ children }: { children: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) return;
+
+    let active = true;
+    const fitText = () => {
+      if (!active) return;
+
+      const styles = window.getComputedStyle(container);
+      const availableWidth = container.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+      const availableHeight = container.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
+      let minimum = 4;
+      let maximum = Math.min(54.4, Math.max(28, availableWidth / 6));
+
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const size = (minimum + maximum) / 2;
+        text.style.fontSize = `${size}px`;
+        if (text.scrollWidth <= availableWidth && text.scrollHeight <= availableHeight) {
+          minimum = size;
+        } else {
+          maximum = size;
+        }
+      }
+
+      text.style.fontSize = `${minimum}px`;
+    };
+
+    const resizeObserver = new ResizeObserver(fitText);
+    resizeObserver.observe(container);
+    fitText();
+    document.fonts?.ready.then(fitText);
+
+    return () => {
+      active = false;
+      resizeObserver.disconnect();
+    };
+  }, [children]);
+
+  return (
+    <div className="face-content" ref={containerRef}>
+      <span ref={textRef}>{children}</span>
+    </div>
+  );
+}
+
 function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Player; refresh: () => Promise<void>; celebrate: (message: string) => void }) {
   const [listId, setListId] = useState("");
   const [mode, setMode] = useState<GameMode>("BASE");
@@ -174,9 +226,31 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
   const [showAnswerSide, setShowAnswerSide] = useState(false);
   const [typed, setTyped] = useState("");
   const [answers, setAnswers] = useState<{ cardId: string; correct: boolean }[]>([]);
+  const [hintsOpen, setHintsOpen] = useState(false);
+  const [hints, setHints] = useState<Hint[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
+    } catch {
+      return [];
+    }
+  });
+  const [newHint, setNewHint] = useState("");
   const activeList = lists.find((list) => list.id === listId);
   const card = cards[index];
   const written = mode.includes("WRITTEN");
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
+      setHints(Array.isArray(saved) ? saved : []);
+    } catch {
+      setHints([]);
+    }
+  }, [player]);
+
+  useEffect(() => {
+    localStorage.setItem(`mymemo-hints-${player}`, JSON.stringify(hints));
+  }, [hints, player]);
 
   useEffect(() => {
     if (!listId && lists[0]) setListId(lists[0].id);
@@ -205,6 +279,21 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
     setRevealed(false);
     setShowAnswerSide(false);
     setTyped("");
+  }
+
+  function addHint() {
+    const text = newHint.trim();
+    if (!text) return;
+    setHints((current) => [{ id: crypto.randomUUID(), text }, ...current]);
+    setNewHint("");
+  }
+
+  function updateHint(id: string, text: string) {
+    setHints((current) => current.map((hint) => hint.id === id ? { ...hint, text } : hint));
+  }
+
+  function deleteHint(id: string) {
+    setHints((current) => current.filter((hint) => hint.id !== id));
   }
 
   async function answer(correct: boolean) {
@@ -250,15 +339,44 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
           <>
             <div className="session-meta"><span>{index + 1}/{cards.length}</span><span>{modeLabel(mode)}</span><span>{direction === "FRONT" ? "Frente" : "Verso"}</span></div>
             <button className={`flashcard ${showAnswerSide ? "flipped" : ""}`} onClick={revealOrSpin}>
-              <div className="face front">{direction === "FRONT" ? card.front : card.back}</div>
-              <div className="face back">{direction === "FRONT" ? card.back : card.front}</div>
+              <div className="face front"><AutoFitText>{direction === "FRONT" ? card.front : card.back}</AutoFitText></div>
+              <div className="face back"><AutoFitText>{direction === "FRONT" ? card.back : card.front}</AutoFitText></div>
             </button>
             {written && <textarea placeholder="Digite sua resposta antes de revelar" value={typed} onChange={(event) => setTyped(event.target.value)} />}
-            <button className="ghost" onClick={revealAnswer}><RotateCcw /> Revelar resposta</button>
+            <div className="study-actions">
+              <button className="ghost" onClick={revealAnswer}><RotateCcw /> Revelar resposta</button>
+              <button className="hint-button" onClick={() => setHintsOpen(true)}><Lightbulb /> Dicas</button>
+            </div>
             {revealed && <div className="answer-row"><button className="danger" onClick={() => answer(false)}><X /> Errei</button><button className="success" onClick={() => answer(true)}><Check /> Acertei</button></div>}
           </>
         )}
       </div>
+      {hintsOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setHintsOpen(false)}>
+          <section className="hint-modal" role="dialog" aria-modal="true" aria-labelledby="hint-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modal-title">
+              <div>
+                <strong id="hint-modal-title">Dicas</strong>
+                <small>{hints.length ? `${hints.length} dica${hints.length === 1 ? "" : "s"} salva${hints.length === 1 ? "" : "s"}` : "Adicione textos para consultar durante o jogo."}</small>
+              </div>
+              <button className="icon" title="Fechar dicas" onClick={() => setHintsOpen(false)}><X /></button>
+            </div>
+            <div className="hint-compose">
+              <textarea placeholder="Escreva uma nova dica" value={newHint} onChange={(event) => setNewHint(event.target.value)} />
+              <button className="primary" disabled={!newHint.trim()} onClick={addHint}><Plus /> Adicionar</button>
+            </div>
+            <div className="hint-list">
+              {hints.length === 0 && <div className="empty hint-empty"><Lightbulb /> Nenhuma dica ainda.</div>}
+              {hints.map((hint) => (
+                <article key={hint.id} className="hint-item">
+                  <textarea aria-label="Texto da dica" value={hint.text} onChange={(event) => updateHint(hint.id, event.target.value)} />
+                  <button className="danger ghostline" title="Apagar dica" onClick={() => deleteHint(hint.id)}><Trash2 /></button>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
