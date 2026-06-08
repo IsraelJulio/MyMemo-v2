@@ -11,9 +11,12 @@
 > vite --host 0.0.0.0
 
 [web] 
-  [32m[1mVITE[22m v6.4.3[39m  [2mready in [0m[1m820[22m[2m[0m ms[22m
+  [32m[1mVITE[22m v6.4.3[39m  [2mready in [0m[1m718[22m[2m[0m ms[22m
 
 [web]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
-[web]   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.2.107:[1m5173[22m/[39m
-  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.31.208.1:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.178.38:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.2.107:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.20.128.1:[1m5173[22m/[39m
 [api] MyMemo API running on http://localhost:4000
+[web] [2m7:58:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/main.tsx[22m
+[web] [2m7:58:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles.css[22m

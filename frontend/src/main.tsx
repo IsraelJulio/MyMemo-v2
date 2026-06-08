@@ -4,7 +4,9 @@ import confetti from "canvas-confetti";
 import {
   BarChart3,
   BookOpen,
+  ChevronDown,
   Check,
+  ChevronUp,
   ChevronRight,
   Download,
   Edit3,
@@ -476,6 +478,7 @@ function ListAdminItem({ list, player, refresh }: { list: List; player: Player; 
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [savingTitle, setSavingTitle] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     setListTitle(list.title);
@@ -554,31 +557,44 @@ function ListAdminItem({ list, player, refresh }: { list: List; player: Player; 
           <small>{cards.length || list._count?.cards || 0} cards</small>
         </div>
         <div className="list-heading-actions">
+          <button
+            className="secondary-action"
+            type="button"
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((value) => !value)}
+          >
+            {collapsed ? <ChevronDown /> : <ChevronUp />}
+            {collapsed ? "Expandir" : "Minimizar"}
+          </button>
           <button disabled={savingTitle || !listTitle.trim() || listTitle.trim() === list.title} onMouseDown={(e) => e.preventDefault()} onClick={saveListTitle}><Check /> Salvar nome</button>
           <button className="danger ghostline" onClick={async () => { await request(`/lists/${list.id}`, { method: "DELETE" }, player); refresh(); }}><Trash2 /> Apagar lista</button>
         </div>
       </div>
 
-      <div className="inline">
-        <input placeholder="Frente" value={front} onChange={(e) => setFront(e.target.value)} />
-        <input placeholder="Verso" value={back} onChange={(e) => setBack(e.target.value)} />
-        <button disabled={!front.trim() || !back.trim()} onClick={addCard} title="Adicionar card"><Plus /></button>
-      </div>
-
-      <div className="card-editor">
-        {loading && <small>Carregando cards...</small>}
-        {!loading && cards.length === 0 && <small>Nenhum card nesta lista ainda.</small>}
-        {cards.map((card) => (
-          <div className="card-row" key={card.id}>
-            <textarea aria-label="Frente do card" value={card.front} onChange={(e) => updateDraft(card.id, "front", e.target.value)} />
-            <textarea aria-label="Verso do card" value={card.back} onChange={(e) => updateDraft(card.id, "back", e.target.value)} />
-            <div className="card-actions">
-              <button disabled={savingId === card.id || !card.front.trim() || !card.back.trim()} onClick={() => saveCard(card)}><Check /> Salvar</button>
-              <button className="danger ghostline" onClick={() => deleteCard(card.id)}><Trash2 /></button>
-            </div>
+      {!collapsed && (
+        <>
+          <div className="inline">
+            <input placeholder="Frente" value={front} onChange={(e) => setFront(e.target.value)} />
+            <input placeholder="Verso" value={back} onChange={(e) => setBack(e.target.value)} />
+            <button disabled={!front.trim() || !back.trim()} onClick={addCard} title="Adicionar card"><Plus /></button>
           </div>
-        ))}
-      </div>
+
+          <div className="card-editor">
+            {loading && <small>Carregando cards...</small>}
+            {!loading && cards.length === 0 && <small>Nenhum card nesta lista ainda.</small>}
+            {cards.map((card) => (
+              <div className="card-row" key={card.id}>
+                <textarea aria-label="Frente do card" value={card.front} onChange={(e) => updateDraft(card.id, "front", e.target.value)} />
+                <textarea aria-label="Verso do card" value={card.back} onChange={(e) => updateDraft(card.id, "back", e.target.value)} />
+                <div className="card-actions">
+                  <button disabled={savingId === card.id || !card.front.trim() || !card.back.trim()} onClick={() => saveCard(card)}><Check /> Salvar</button>
+                  <button className="danger ghostline" onClick={() => deleteCard(card.id)}><Trash2 /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </article>
   );
 }
