@@ -171,6 +171,7 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [showAnswerSide, setShowAnswerSide] = useState(false);
   const [typed, setTyped] = useState("");
   const [answers, setAnswers] = useState<{ cardId: string; correct: boolean }[]>([]);
   const activeList = lists.find((list) => list.id === listId);
@@ -181,6 +182,20 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
     if (!listId && lists[0]) setListId(lists[0].id);
   }, [lists, listId]);
 
+  function revealOrSpin() {
+    if (!revealed) {
+      setRevealed(true);
+      setShowAnswerSide(true);
+      return;
+    }
+    setShowAnswerSide((value) => !value);
+  }
+
+  function revealAnswer() {
+    setRevealed(true);
+    setShowAnswerSide(true);
+  }
+
   async function start() {
     const qs = new URLSearchParams({ mode, direction, ...(mode.includes("GLOBAL") ? {} : { listId }) });
     const nextCards = await request<Card[]>(`/play/cards?${qs}`, {}, player);
@@ -188,6 +203,7 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
     setIndex(0);
     setAnswers([]);
     setRevealed(false);
+    setShowAnswerSide(false);
     setTyped("");
   }
 
@@ -197,6 +213,7 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
       setAnswers(nextAnswers);
       setIndex(index + 1);
       setRevealed(false);
+      setShowAnswerSide(false);
       setTyped("");
       return;
     }
@@ -205,6 +222,7 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
       body: JSON.stringify({ listId: card.listId ?? listId, listTitle: activeList?.title ?? card.list?.title, mode, direction, answers: nextAnswers })
     }, player);
     setCards([]);
+    setShowAnswerSide(false);
     await refresh();
     celebrate(`${result.session.points} pontos, ${result.session.accuracy}% de acerto`);
   }
@@ -231,12 +249,12 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
         {card && (
           <>
             <div className="session-meta"><span>{index + 1}/{cards.length}</span><span>{modeLabel(mode)}</span><span>{direction === "FRONT" ? "Frente" : "Verso"}</span></div>
-            <button className={`flashcard ${revealed ? "flipped" : ""}`} onClick={() => setRevealed(true)}>
+            <button className={`flashcard ${showAnswerSide ? "flipped" : ""}`} onClick={revealOrSpin}>
               <div className="face front">{direction === "FRONT" ? card.front : card.back}</div>
               <div className="face back">{direction === "FRONT" ? card.back : card.front}</div>
             </button>
             {written && <textarea placeholder="Digite sua resposta antes de revelar" value={typed} onChange={(event) => setTyped(event.target.value)} />}
-            <button className="ghost" onClick={() => setRevealed(true)}><RotateCcw /> Revelar resposta</button>
+            <button className="ghost" onClick={revealAnswer}><RotateCcw /> Revelar resposta</button>
             {revealed && <div className="answer-row"><button className="danger" onClick={() => answer(false)}><X /> Errei</button><button className="success" onClick={() => answer(true)}><Check /> Acertei</button></div>}
           </>
         )}
@@ -478,7 +496,7 @@ function ListAdminItem({ list, player, refresh }: { list: List; player: Player; 
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [savingTitle, setSavingTitle] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     setListTitle(list.title);
