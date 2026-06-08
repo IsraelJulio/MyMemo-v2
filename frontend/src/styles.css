@@ -98,6 +98,7 @@ button:disabled {
 .inline,
 .goal-editor,
 .list-heading,
+.list-heading-actions,
 .card-actions {
   display: flex;
   align-items: center;
@@ -707,12 +708,29 @@ textarea {
   gap: 12px;
 }
 
-.list-heading strong,
+.list-title-editor {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.list-title-editor input {
+  min-height: 42px;
+  max-width: 460px;
+  font-weight: 800;
+}
+
 .list-heading small {
   display: block;
 }
 
-.list-heading button {
+.list-heading-actions {
+  justify-content: end;
+  flex-wrap: wrap;
+}
+
+.list-heading-actions button {
   min-width: max-content;
 }
 

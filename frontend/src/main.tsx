@@ -470,10 +470,16 @@ function Manage({ lists, player, refresh, celebrate }: { lists: List[]; player: 
 
 function ListAdminItem({ list, player, refresh }: { list: List; player: Player; refresh: () => Promise<void> }) {
   const [cards, setCards] = useState<Card[]>(list.cards ?? []);
+  const [listTitle, setListTitle] = useState(list.title);
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [savingTitle, setSavingTitle] = useState(false);
+
+  useEffect(() => {
+    setListTitle(list.title);
+  }, [list.title]);
 
   useEffect(() => {
     let active = true;
@@ -513,6 +519,18 @@ function ListAdminItem({ list, player, refresh }: { list: List; player: Player; 
     }
   }
 
+  async function saveListTitle() {
+    const title = listTitle.trim();
+    if (!title || title === list.title) return;
+    setSavingTitle(true);
+    try {
+      await request<List>(`/lists/${list.id}`, { method: "PUT", body: JSON.stringify({ title, color: list.color }) }, player);
+      await refresh();
+    } finally {
+      setSavingTitle(false);
+    }
+  }
+
   async function deleteCard(cardId: string) {
     await request(`/cards/${cardId}`, { method: "DELETE" }, player);
     setCards((current) => current.filter((card) => card.id !== cardId));
@@ -522,11 +540,23 @@ function ListAdminItem({ list, player, refresh }: { list: List; player: Player; 
   return (
     <article style={{ borderColor: list.color }}>
       <div className="list-heading">
-        <div>
-          <strong>{list.title}</strong>
+        <div className="list-title-editor">
+          <input
+            aria-label="Nome da lista"
+            value={listTitle}
+            onChange={(e) => setListTitle(e.target.value)}
+            onBlur={saveListTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveListTitle();
+              if (e.key === "Escape") setListTitle(list.title);
+            }}
+          />
           <small>{cards.length || list._count?.cards || 0} cards</small>
         </div>
-        <button className="danger ghostline" onClick={async () => { await request(`/lists/${list.id}`, { method: "DELETE" }, player); refresh(); }}><Trash2 /> Apagar lista</button>
+        <div className="list-heading-actions">
+          <button disabled={savingTitle || !listTitle.trim() || listTitle.trim() === list.title} onMouseDown={(e) => e.preventDefault()} onClick={saveListTitle}><Check /> Salvar nome</button>
+          <button className="danger ghostline" onClick={async () => { await request(`/lists/${list.id}`, { method: "DELETE" }, player); refresh(); }}><Trash2 /> Apagar lista</button>
+        </div>
       </div>
 
       <div className="inline">
