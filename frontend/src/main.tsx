@@ -35,7 +35,7 @@ type GameMode = "BASE" | "SPACED_LIST" | "SPACED_GLOBAL" | "BASE_WRITTEN" | "SPA
 type Card = { id: string; front: string; back: string; listId: string; list?: List };
 type List = { id: string; title: string; color: string; _count?: { cards: number }; cards?: Card[] };
 type Session = { id: string; listTitle: string; mode: GameMode; direction: Direction; points: number; accuracy: number; playedAt: string; user: { displayName: string }; correctCount: number; totalCount: number; antiGrind: boolean };
-type Hint = { id: string; text: string };
+type Hint = { id: string; text: string; cardId?: string; cardFront?: string; cardBack?: string };
 type Dashboard = {
   sessions: Session[];
   lists: List[];
@@ -227,6 +227,10 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
   const [typed, setTyped] = useState("");
   const [answers, setAnswers] = useState<{ cardId: string; correct: boolean }[]>([]);
   const [hintsOpen, setHintsOpen] = useState(false);
+  const [hintTab, setHintTab] = useState<"CARD" | "ALL">("CARD");
+  const [hintModalOffset, setHintModalOffset] = useState({ x: 0, y: 0 });
+  const hintModalRef = useRef<HTMLElement>(null);
+  const hintDragRef = useRef<{ pointerId: number; x: number; y: number; offsetX: number; offsetY: number } | null>(null);
   const [hints, setHints] = useState<Hint[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
@@ -238,6 +242,8 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
   const activeList = lists.find((list) => list.id === listId);
   const card = cards[index];
   const written = mode.includes("WRITTEN");
+  const cardHints = card ? hints.filter((hint) => hint.cardId === card.id) : [];
+  const visibleHints = hintTab === "CARD" ? cardHints : hints;
 
   useEffect(() => {
     try {
@@ -281,10 +287,26 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
     setTyped("");
   }
 
+  function closeGame() {
+    setCards([]);
+    setIndex(0);
+    setAnswers([]);
+    setRevealed(false);
+    setShowAnswerSide(false);
+    setTyped("");
+    setHintsOpen(false);
+  }
+
   function addHint() {
     const text = newHint.trim();
-    if (!text) return;
-    setHints((current) => [{ id: crypto.randomUUID(), text }, ...current]);
+    if (!text || !card) return;
+    setHints((current) => [{
+      id: crypto.randomUUID(),
+      text,
+      cardId: card.id,
+      cardFront: card.front,
+      cardBack: card.back
+    }, ...current]);
     setNewHint("");
   }
 
@@ -294,6 +316,44 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
 
   function deleteHint(id: string) {
     setHints((current) => current.filter((hint) => hint.id !== id));
+  }
+
+  function startHintDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || !hintModalRef.current) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    hintDragRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      offsetX: hintModalOffset.x,
+      offsetY: hintModalOffset.y
+    };
+  }
+
+  function dragHintModal(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = hintDragRef.current;
+    const modal = hintModalRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !modal) return;
+
+    const rect = modal.getBoundingClientRect();
+    const nextX = drag.offsetX + event.clientX - drag.x;
+    const nextY = drag.offsetY + event.clientY - drag.y;
+    const baseLeft = rect.left - hintModalOffset.x;
+    const baseTop = rect.top - hintModalOffset.y;
+    const minX = -baseLeft;
+    const maxX = window.innerWidth - baseLeft - rect.width;
+    const minY = -baseTop;
+    const maxY = window.innerHeight - baseTop - rect.height;
+    setHintModalOffset({
+      x: Math.min(maxX, Math.max(minX, nextX)),
+      y: Math.min(maxY, Math.max(minY, nextY))
+    });
+  }
+
+  function stopHintDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (hintDragRef.current?.pointerId !== event.pointerId) return;
+    hintDragRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
   async function answer(correct: boolean) {
@@ -317,8 +377,8 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
   }
 
   return (
-    <section className="play-grid">
-      <div className="launcher">
+    <section className={`play-grid ${card ? "game-active" : ""}`}>
+      {!card && <div className="launcher">
         <label>Lista</label>
         <select value={listId} onChange={(event) => setListId(event.target.value)} disabled={mode.includes("GLOBAL")}>
           {lists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}
@@ -331,13 +391,16 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
           <button className={direction === "BACK" ? "active" : ""} onClick={() => setDirection("BACK")}>Verso</button>
         </div>
         <button className="primary" disabled={!listId && !mode.includes("GLOBAL")} onClick={start}><ChevronRight /> Comecar</button>
-      </div>
+      </div>}
 
       <div className="table">
         {!card && <div className="empty"><Flame size={42} /> Escolha uma lista e comece uma sessao.</div>}
         {card && (
           <>
-            <div className="session-meta"><span>{index + 1}/{cards.length}</span><span>{modeLabel(mode)}</span><span>{direction === "FRONT" ? "Frente" : "Verso"}</span></div>
+            <div className="session-header">
+              <div className="session-meta"><span>{index + 1}/{cards.length}</span><span>{modeLabel(mode)}</span><span>{direction === "FRONT" ? "Frente" : "Verso"}</span></div>
+              <button className="danger close-game" onClick={closeGame}><X /> Fechar jogo</button>
+            </div>
             <button className={`flashcard ${showAnswerSide ? "flipped" : ""}`} onClick={revealOrSpin}>
               <div className="face front"><AutoFitText>{direction === "FRONT" ? card.front : card.back}</AutoFitText></div>
               <div className="face back"><AutoFitText>{direction === "FRONT" ? card.back : card.front}</AutoFitText></div>
@@ -345,7 +408,9 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
             {written && <textarea placeholder="Digite sua resposta antes de revelar" value={typed} onChange={(event) => setTyped(event.target.value)} />}
             <div className="study-actions">
               <button className="ghost" onClick={revealAnswer}><RotateCcw /> Revelar resposta</button>
-              <button className="hint-button" onClick={() => setHintsOpen(true)}><Lightbulb /> Dicas</button>
+              <button className="hint-button" onClick={() => { setHintTab("CARD"); setHintsOpen(true); }}>
+                <Lightbulb /> Dicas{cardHints.length ? ` (${cardHints.length})` : ""}
+              </button>
             </div>
             {revealed && <div className="answer-row"><button className="danger" onClick={() => answer(false)}><X /> Errei</button><button className="success" onClick={() => answer(true)}><Check /> Acertei</button></div>}
           </>
@@ -353,23 +418,62 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
       </div>
       {hintsOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setHintsOpen(false)}>
-          <section className="hint-modal" role="dialog" aria-modal="true" aria-labelledby="hint-modal-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="modal-title">
+          <section
+            ref={hintModalRef}
+            className="hint-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hint-modal-title"
+            style={{ transform: `translate(${hintModalOffset.x}px, ${hintModalOffset.y}px)` }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div
+              className="modal-title hint-modal-handle"
+              onPointerDown={startHintDrag}
+              onPointerMove={dragHintModal}
+              onPointerUp={stopHintDrag}
+              onPointerCancel={stopHintDrag}
+            >
               <div>
                 <strong id="hint-modal-title">Dicas</strong>
-                <small>{hints.length ? `${hints.length} dica${hints.length === 1 ? "" : "s"} salva${hints.length === 1 ? "" : "s"}` : "Adicione textos para consultar durante o jogo."}</small>
+                <small>{hintTab === "CARD"
+                  ? cardHints.length
+                    ? `${cardHints.length} dica${cardHints.length === 1 ? "" : "s"} para este card`
+                    : "Nenhuma dica para este card."
+                  : hints.length
+                    ? `${hints.length} dica${hints.length === 1 ? "" : "s"} salva${hints.length === 1 ? "" : "s"}`
+                    : "Nenhuma dica salva."}</small>
               </div>
-              <button className="icon" title="Fechar dicas" onClick={() => setHintsOpen(false)}><X /></button>
+              <button className="icon" title="Fechar dicas" onPointerDown={(event) => event.stopPropagation()} onClick={() => setHintsOpen(false)}><X /></button>
             </div>
-            <div className="hint-compose">
-              <textarea placeholder="Escreva uma nova dica" value={newHint} onChange={(event) => setNewHint(event.target.value)} />
-              <button className="primary" disabled={!newHint.trim()} onClick={addHint}><Plus /> Adicionar</button>
+            <div className="hint-tabs" role="tablist" aria-label="Visualização das dicas">
+              <button role="tab" aria-selected={hintTab === "CARD"} className={hintTab === "CARD" ? "active" : ""} onClick={() => setHintTab("CARD")}>
+                Este card <span>{cardHints.length}</span>
+              </button>
+              <button role="tab" aria-selected={hintTab === "ALL"} className={hintTab === "ALL" ? "active" : ""} onClick={() => setHintTab("ALL")}>
+                Todas <span>{hints.length}</span>
+              </button>
             </div>
+            {hintTab === "CARD" && (
+              <div className="hint-compose">
+                <textarea placeholder="Escreva uma dica para este card" value={newHint} onChange={(event) => setNewHint(event.target.value)} />
+                <button className="primary" disabled={!newHint.trim()} onClick={addHint}><Plus /> Adicionar</button>
+              </div>
+            )}
             <div className="hint-list">
-              {hints.length === 0 && <div className="empty hint-empty"><Lightbulb /> Nenhuma dica ainda.</div>}
-              {hints.map((hint) => (
+              {visibleHints.length === 0 && <div className="empty hint-empty"><Lightbulb /> {hintTab === "CARD" ? "Nenhuma dica para este card." : "Nenhuma dica ainda."}</div>}
+              {visibleHints.map((hint) => (
                 <article key={hint.id} className="hint-item">
-                  <textarea aria-label="Texto da dica" value={hint.text} onChange={(event) => updateHint(hint.id, event.target.value)} />
+                  <div className="hint-content">
+                    {hintTab === "ALL" && (
+                      <small className="hint-card-label">
+                        {hint.cardId
+                          ? `${hint.cardFront ?? "Card"}${hint.cardBack ? ` → ${hint.cardBack}` : ""}`
+                          : "Dica antiga sem card vinculado"}
+                      </small>
+                    )}
+                    <textarea aria-label="Texto da dica" value={hint.text} onChange={(event) => updateHint(hint.id, event.target.value)} />
+                  </div>
                   <button className="danger ghostline" title="Apagar dica" onClick={() => deleteHint(hint.id)}><Trash2 /></button>
                 </article>
               ))}

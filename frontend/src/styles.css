@@ -95,6 +95,7 @@ button:disabled {
 .brand,
 .top-actions,
 .tabs,
+.session-header,
 .session-meta,
 .answer-row,
 .study-actions,
@@ -341,6 +342,18 @@ textarea {
   flex-wrap: wrap;
 }
 
+.session-header {
+  justify-content: space-between;
+}
+
+.session-header .session-meta {
+  flex: 1;
+}
+
+.session-header .close-game {
+  flex: 0 0 auto;
+}
+
 .session-meta span {
   padding: 6px 9px;
   border-radius: 999px;
@@ -464,6 +477,42 @@ textarea {
   font-size: 1.12rem;
 }
 
+.hint-modal-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.hint-modal-handle:active {
+  cursor: grabbing;
+}
+
+.hint-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.hint-tabs button {
+  min-height: 42px;
+  padding: 8px 12px;
+  color: inherit;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.hint-tabs button.active {
+  color: white;
+  background: #0ea5e9;
+}
+
+.hint-tabs span {
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .hint-compose {
   display: grid;
   gap: 8px;
@@ -496,6 +545,19 @@ textarea {
 
 .hint-item textarea {
   min-height: 82px;
+}
+
+.hint-content {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.hint-card-label {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hint-item button {
@@ -917,6 +979,10 @@ textarea {
   .play-grid,
   .manage {
     grid-template-columns: 360px 1fr;
+  }
+
+  .play-grid.game-active {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard {
