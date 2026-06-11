@@ -598,6 +598,14 @@ function DashboardView({ data }: { data: Dashboard }) {
 const positionColors = ["#f59e0b", "#9ca3af", "#a16207"];
 
 function RankingPanel({ ranking }: { ranking: Dashboard["ranking"] }) {
+  const [preview, setPreview] = useState<RankCard | null>(null);
+  const [flipped, setFlipped] = useState(false);
+
+  function openCard(card: RankCard) {
+    setPreview(card);
+    setFlipped(false);
+  }
+
   return (
     <div className="panel ranking-panel">
       <div className="panel-title"><strong>Rankings</strong><small>Historico acumulado</small></div>
@@ -605,33 +613,33 @@ function RankingPanel({ ranking }: { ranking: Dashboard["ranking"] }) {
         <div className="ranking-section">
           <p className="ranking-label">Cards mais jogados</p>
           {ranking.topPlayed.map((card, i) => (
-            <div className="ranking-item" key={card.front + i}>
+            <button className="ranking-item" key={card.front + i} onClick={() => openCard(card)}>
               <span className="ranking-pos" style={{ color: positionColors[i] ?? "#6b7280" }}>#{i + 1}</span>
               <div className="ranking-content">
                 <strong>{card.front}</strong>
                 <small>{card.listTitle} &middot; {card.count}x</small>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
         <div className="ranking-section">
           <p className="ranking-label">Perguntas mais erradas</p>
           {ranking.topWrong.map((card, i) => (
-            <div className="ranking-item" key={card.front + i}>
+            <button className="ranking-item" key={card.front + i} onClick={() => openCard(card)}>
               <span className="ranking-pos" style={{ color: positionColors[i] ?? "#6b7280" }}>#{i + 1}</span>
               <div className="ranking-content">
                 <strong>{card.front}</strong>
                 <small>{card.listTitle} &middot; {card.count}x errado</small>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
         <div className="ranking-section">
           <p className="ranking-label">Listas mais dificeis</p>
           {ranking.hardestLists.map((item, i) => (
-            <div className="ranking-item ranking-item--list" key={item.title}>
+            <div className="ranking-item" key={item.title}>
               <span className="ranking-pos" style={{ color: positionColors[i] ?? "#6b7280" }}>#{i + 1}</span>
               <div className="ranking-content">
                 <strong>{item.title}</strong>
@@ -642,6 +650,25 @@ function RankingPanel({ ranking }: { ranking: Dashboard["ranking"] }) {
           ))}
         </div>
       </div>
+
+      {preview && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setPreview(null)}>
+          <div className="card-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-title">
+              <div>
+                <strong>Visualizar card</strong>
+                <small>{preview.listTitle}</small>
+              </div>
+              <button onClick={() => setPreview(null)}><X /></button>
+            </div>
+            <button className={`flashcard${flipped ? " flipped" : ""}`} onClick={() => setFlipped((f) => !f)} aria-label="Virar card">
+              <div className="face front"><div className="face-content"><span>{preview.front}</span></div></div>
+              <div className="face back"><div className="face-content"><span>{preview.back}</span></div></div>
+            </button>
+            <small className="card-preview-hint">{flipped ? "Clique para ver a frente" : "Clique para ver o verso"}</small>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

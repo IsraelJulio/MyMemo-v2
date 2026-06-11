@@ -49,6 +49,7 @@ button:disabled {
 .launcher,
 .table,
 .hint-modal,
+.card-preview-modal,
 .dashboard-hero,
 .panel,
 .stat,
@@ -68,6 +69,7 @@ button:disabled {
 :root[data-theme="dark"] .launcher,
 :root[data-theme="dark"] .table,
 :root[data-theme="dark"] .hint-modal,
+:root[data-theme="dark"] .card-preview-modal,
 :root[data-theme="dark"] .dashboard-hero,
 :root[data-theme="dark"] .panel,
 :root[data-theme="dark"] .stat,
@@ -927,6 +929,37 @@ textarea {
   border-radius: inherit;
   background: linear-gradient(90deg, #f87171, #facc15);
   transition: width 0.4s ease;
+}
+
+.ranking-item[role="button"],
+button.ranking-item {
+  cursor: pointer;
+  text-align: left;
+  border: none;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+button.ranking-item:hover {
+  background: rgba(124, 58, 237, 0.1);
+}
+
+.card-preview-modal {
+  display: grid;
+  gap: 14px;
+  width: min(480px, 100%);
+  padding: 18px;
+  border-radius: 22px;
+}
+
+.card-preview-modal .flashcard {
+  min-height: 240px;
+  cursor: pointer;
+}
+
+.card-preview-hint {
+  text-align: center;
+  display: block;
 }
 
 .manage {
