@@ -206,12 +206,14 @@ app.post("/api/sessions", async (req, res) => {
 });
 
 app.get("/api/dashboard", async (req, res) => {
-  const [sessions, users, lists, goals, unlocks] = await Promise.all([
+  const [sessions, users, lists, goals, unlocks, topPlayedRaw, topWrongRaw] = await Promise.all([
     prisma.gameSession.findMany({ include: { user: true }, orderBy: { playedAt: "desc" }, take: 200 }),
     prisma.user.findMany(),
     prisma.studyList.findMany({ where: { deletedAt: null }, orderBy: { title: "asc" } }),
     prisma.goal.findMany({ include: { list: true, user: true }, orderBy: { createdAt: "desc" } }),
-    prisma.achievementUnlock.findMany()
+    prisma.achievementUnlock.findMany(),
+    prisma.attempt.groupBy({ by: ["cardId"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
+    prisma.attempt.groupBy({ by: ["cardId"], where: { correct: false }, _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 })
   ]);
   const byDirection = ["FRONT", "BACK"].map((direction) => {
     const rows = sessions.filter((row) => row.direction === direction);
@@ -233,6 +235,24 @@ app.get("/api/dashboard", async (req, res) => {
     current.total += row.totalCount;
     days.set(key, current);
   }
+  const allRankCardIds = [...new Set([...topPlayedRaw.map(r => r.cardId), ...topWrongRaw.map(r => r.cardId)])];
+  const rankCards = allRankCardIds.length ? await prisma.card.findMany({ where: { id: { in: allRankCardIds } }, include: { list: { select: { title: true } } } }) : [];
+  const cardMap = new Map(rankCards.map(c => [c.id, c]));
+  const topPlayed = topPlayedRaw.map(r => { const c = cardMap.get(r.cardId); return c ? { front: c.front, back: c.back, listTitle: c.list.title, count: r._count.id } : null; }).filter(Boolean).slice(0, 5) as { front: string; back: string; listTitle: string; count: number }[];
+  const topWrong = topWrongRaw.map(r => { const c = cardMap.get(r.cardId); return c ? { front: c.front, back: c.back, listTitle: c.list.title, count: r._count.id } : null; }).filter(Boolean).slice(0, 5) as { front: string; back: string; listTitle: string; count: number }[];
+  const listStats = new Map<string, { correct: number; total: number; sessionCount: number }>();
+  for (const s of sessions) {
+    const cur = listStats.get(s.listTitle) ?? { correct: 0, total: 0, sessionCount: 0 };
+    cur.correct += s.correctCount;
+    cur.total += s.totalCount;
+    cur.sessionCount += 1;
+    listStats.set(s.listTitle, cur);
+  }
+  const hardestLists = [...listStats.entries()]
+    .filter(([, l]) => l.sessionCount >= 2 && l.total > 0)
+    .map(([title, l]) => ({ title, accuracy: Math.round((l.correct / l.total) * 100), sessionCount: l.sessionCount }))
+    .sort((a, b) => a.accuracy - b.accuracy)
+    .slice(0, 5);
   res.json({
     users,
     lists,
@@ -241,7 +261,8 @@ app.get("/api/dashboard", async (req, res) => {
     calendar: [...days.entries()].map(([date, value]) => ({ date, ...value, accuracy: value.total ? Number(((value.correct / value.total) * 100).toFixed(1)) : 0 })),
     achievements,
     unlocks,
-    goals
+    goals,
+    ranking: { topPlayed, topWrong, hardestLists }
   });
 });
 

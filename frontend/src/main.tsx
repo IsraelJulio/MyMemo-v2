@@ -36,6 +36,8 @@ type Card = { id: string; front: string; back: string; listId: string; list?: Li
 type List = { id: string; title: string; color: string; _count?: { cards: number }; cards?: Card[] };
 type Session = { id: string; listTitle: string; mode: GameMode; direction: Direction; points: number; accuracy: number; playedAt: string; user: { displayName: string }; correctCount: number; totalCount: number; antiGrind: boolean };
 type Hint = { id: string; text: string; cardId?: string; cardFront?: string; cardBack?: string };
+type RankCard = { front: string; back: string; listTitle: string; count: number };
+type RankList = { title: string; accuracy: number; sessionCount: number };
 type Dashboard = {
   sessions: Session[];
   lists: List[];
@@ -44,6 +46,7 @@ type Dashboard = {
   achievements: { id: string; title: string; description: string }[];
   unlocks: { userId: string; achievementId: string; unlockedAt: string }[];
   goals: { id: string; target: number; achievedAt?: string; list?: List | null; user: { displayName: string } }[];
+  ranking: { topPlayed: RankCard[]; topWrong: RankCard[]; hardestLists: RankList[] };
 };
 
 const modes: { id: GameMode; label: string; short: string }[] = [
@@ -561,6 +564,8 @@ function DashboardView({ data }: { data: Dashboard }) {
       </div>
 
       <aside className="dashboard-side">
+        <RankingPanel ranking={data.ranking} />
+
         <div className="panel calendar-panel">
           <div className="panel-title"><strong>Calendario</strong><small>Ultimos 42 dias</small></div>
           <div className="calendar">
@@ -587,6 +592,57 @@ function DashboardView({ data }: { data: Dashboard }) {
         </div>
       </aside>
     </section>
+  );
+}
+
+const positionColors = ["#f59e0b", "#9ca3af", "#a16207"];
+
+function RankingPanel({ ranking }: { ranking: Dashboard["ranking"] }) {
+  return (
+    <div className="panel ranking-panel">
+      <div className="panel-title"><strong>Rankings</strong><small>Historico acumulado</small></div>
+      <div className="ranking-sections">
+        <div className="ranking-section">
+          <p className="ranking-label">Cards mais jogados</p>
+          {ranking.topPlayed.map((card, i) => (
+            <div className="ranking-item" key={card.front + i}>
+              <span className="ranking-pos" style={{ color: positionColors[i] ?? "#6b7280" }}>#{i + 1}</span>
+              <div className="ranking-content">
+                <strong>{card.front}</strong>
+                <small>{card.listTitle} &middot; {card.count}x</small>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="ranking-section">
+          <p className="ranking-label">Perguntas mais erradas</p>
+          {ranking.topWrong.map((card, i) => (
+            <div className="ranking-item" key={card.front + i}>
+              <span className="ranking-pos" style={{ color: positionColors[i] ?? "#6b7280" }}>#{i + 1}</span>
+              <div className="ranking-content">
+                <strong>{card.front}</strong>
+                <small>{card.listTitle} &middot; {card.count}x errado</small>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="ranking-section">
+          <p className="ranking-label">Listas mais dificeis</p>
+          {ranking.hardestLists.map((item, i) => (
+            <div className="ranking-item ranking-item--list" key={item.title}>
+              <span className="ranking-pos" style={{ color: positionColors[i] ?? "#6b7280" }}>#{i + 1}</span>
+              <div className="ranking-content">
+                <strong>{item.title}</strong>
+                <small>{item.accuracy}% acerto &middot; {item.sessionCount} sessoes</small>
+                <div className="ranking-bar-track"><div className="ranking-bar-fill" style={{ width: `${item.accuracy}%` }} /></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
