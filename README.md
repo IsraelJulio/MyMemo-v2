@@ -52,7 +52,6 @@ Depois acesse:
 ## Login
 
 - Sem login, todo mundo joga como `Player One`.
-- Para entrar como Israel, clique em `Israel` e informe a senha `123`.
 - Israel pode criar, editar, apagar, importar listas CSV e criar metas.
 - Player One pode jogar listas existentes e acumular seu proprio historico.
 
