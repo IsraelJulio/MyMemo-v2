@@ -458,7 +458,8 @@ textarea {
 }
 
 .hint-modal {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   width: min(620px, 100%);
   max-height: min(760px, 92vh);
@@ -527,8 +528,11 @@ textarea {
 .hint-list {
   display: grid;
   gap: 8px;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 2px;
+  scrollbar-gutter: stable;
 }
 
 .hint-item {
