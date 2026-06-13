@@ -278,7 +278,17 @@ textarea {
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea {
+  color: #f2f7fb;
   background: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme="dark"] select {
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] select option {
+  color: #f2f7fb;
+  background: #252b3a;
 }
 
 textarea {
@@ -890,6 +900,7 @@ textarea {
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
+  color: inherit;
   border-radius: 12px;
   background: rgba(107, 114, 128, 0.07);
 }
