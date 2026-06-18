@@ -219,6 +219,77 @@ function AutoFitText({ children }: { children: string }) {
   );
 }
 
+function hasTextSelectionInside(element: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.toString().trim()) return false;
+
+  const anchor = selection.anchorNode;
+  const focus = selection.focusNode;
+  return Boolean((anchor && element.contains(anchor)) || (focus && element.contains(focus)));
+}
+
+function SelectableFlashcard({
+  flipped,
+  front,
+  back,
+  onFlip,
+  ariaLabel = "Virar card"
+}: {
+  flipped: boolean;
+  front: string;
+  back: string;
+  onFlip: () => void;
+  ariaLabel?: string;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const pressRef = useRef<{ pointerId: number; x: number; y: number; startedAt: number } | null>(null);
+
+  function startPress(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    pressRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      startedAt: window.performance.now()
+    };
+  }
+
+  function finishPress(event: React.PointerEvent<HTMLDivElement>) {
+    const press = pressRef.current;
+    pressRef.current = null;
+    if (!press || press.pointerId !== event.pointerId || !cardRef.current) return;
+
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8;
+    const held = window.performance.now() - press.startedAt > 420;
+    if (moved || held || hasTextSelectionInside(cardRef.current)) return;
+
+    onFlip();
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onFlip();
+  }
+
+  return (
+    <div
+      ref={cardRef}
+      className={`flashcard ${flipped ? "flipped" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      onPointerDown={startPress}
+      onPointerUp={finishPress}
+      onPointerCancel={() => { pressRef.current = null; }}
+      onKeyDown={handleKeyDown}
+    >
+      <div className="face front"><AutoFitText>{front}</AutoFitText></div>
+      <div className="face back"><AutoFitText>{back}</AutoFitText></div>
+    </div>
+  );
+}
+
 function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Player; refresh: () => Promise<void>; celebrate: (message: string) => void }) {
   const [listId, setListId] = useState("");
   const [mode, setMode] = useState<GameMode>("BASE");
@@ -404,10 +475,12 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
               <div className="session-meta"><span>{index + 1}/{cards.length}</span><span>{modeLabel(mode)}</span><span>{direction === "FRONT" ? "Frente" : "Verso"}</span></div>
               <button className="danger close-game" onClick={closeGame}><X /> Fechar jogo</button>
             </div>
-            <button className={`flashcard ${showAnswerSide ? "flipped" : ""}`} onClick={revealOrSpin}>
-              <div className="face front"><AutoFitText>{direction === "FRONT" ? card.front : card.back}</AutoFitText></div>
-              <div className="face back"><AutoFitText>{direction === "FRONT" ? card.back : card.front}</AutoFitText></div>
-            </button>
+            <SelectableFlashcard
+              flipped={showAnswerSide}
+              front={direction === "FRONT" ? card.front : card.back}
+              back={direction === "FRONT" ? card.back : card.front}
+              onFlip={revealOrSpin}
+            />
             {written && <textarea placeholder="Digite sua resposta antes de revelar" value={typed} onChange={(event) => setTyped(event.target.value)} />}
             <div className="study-actions">
               <button className="ghost" onClick={revealAnswer}><RotateCcw /> Revelar resposta</button>
@@ -661,10 +734,12 @@ function RankingPanel({ ranking }: { ranking: Dashboard["ranking"] }) {
               </div>
               <button onClick={() => setPreview(null)}><X /></button>
             </div>
-            <button className={`flashcard${flipped ? " flipped" : ""}`} onClick={() => setFlipped((f) => !f)} aria-label="Virar card">
-              <div className="face front"><div className="face-content"><span>{preview.front}</span></div></div>
-              <div className="face back"><div className="face-content"><span>{preview.back}</span></div></div>
-            </button>
+            <SelectableFlashcard
+              flipped={flipped}
+              front={preview.front}
+              back={preview.back}
+              onFlip={() => setFlipped((f) => !f)}
+            />
             <small className="card-preview-hint">{flipped ? "Clique para ver a frente" : "Clique para ver o verso"}</small>
           </div>
         </div>

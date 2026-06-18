@@ -379,6 +379,16 @@ textarea {
   perspective: 1000px;
   color: inherit;
   background: transparent;
+  border: 0;
+  cursor: pointer;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.flashcard:focus-visible .face {
+  border-color: rgba(124, 58, 237, 0.68);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.14), 0 18px 50px rgba(124, 58, 237, 0.18);
 }
 
 .face {
@@ -411,6 +421,9 @@ textarea {
   max-height: 100%;
   line-height: 1.12;
   overflow-wrap: anywhere;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .front {
