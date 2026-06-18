@@ -241,6 +241,7 @@ svg {
 .play-grid,
 .import-view,
 .manage,
+.hints-page,
 .dashboard {
   display: grid;
   gap: 14px;
@@ -598,6 +599,94 @@ textarea {
 
 .hint-empty {
   min-height: 160px;
+}
+
+.hints-page {
+  align-items: start;
+}
+
+.hints-list-panel,
+.hint-detail-panel {
+  min-width: 0;
+}
+
+.global-hint-list {
+  display: grid;
+  gap: 8px;
+  max-height: 68vh;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.global-hint-item {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  color: inherit;
+  text-align: left;
+  border: 1px solid rgba(80, 96, 133, 0.12);
+  border-radius: 14px;
+  background: rgba(107, 114, 128, 0.07);
+}
+
+.global-hint-item:hover,
+.global-hint-item.active {
+  border-color: rgba(14, 165, 233, 0.4);
+  background: rgba(14, 165, 233, 0.12);
+}
+
+:root[data-theme="dark"] .global-hint-item {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] .global-hint-item:hover,
+:root[data-theme="dark"] .global-hint-item.active {
+  background: rgba(14, 165, 233, 0.16);
+}
+
+.global-hint-item span {
+  display: -webkit-box;
+  overflow: hidden;
+  font-weight: 800;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.global-hint-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint-detail-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.hint-detail-panel .panel-title {
+  margin-bottom: 0;
+}
+
+.hint-delete {
+  width: 46px;
+  min-height: 46px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.global-hint-text {
+  min-height: 130px;
+}
+
+.hint-card-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.hint-card-preview .flashcard {
+  min-height: 300px;
 }
 
 .success {
@@ -1108,8 +1197,14 @@ button.ranking-item:hover {
   }
 
   .play-grid,
-  .manage {
+  .manage,
+  .hints-page {
     grid-template-columns: 360px 1fr;
+  }
+
+  .hint-detail-panel {
+    position: sticky;
+    top: 150px;
   }
 
   .play-grid.game-active {

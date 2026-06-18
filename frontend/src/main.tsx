@@ -48,6 +48,7 @@ type Dashboard = {
   goals: { id: string; target: number; achievedAt?: string; list?: List | null; user: { displayName: string } }[];
   ranking: { topPlayed: RankCard[]; topWrong: RankCard[]; hardestLists: RankList[] };
 };
+type View = "play" | "dashboard" | "hints" | "import" | "manage";
 
 const modes: { id: GameMode; label: string; short: string }[] = [
   { id: "BASE", label: "Base", short: "Clique" },
@@ -60,6 +61,15 @@ const modes: { id: GameMode; label: string; short: string }[] = [
 
 function authHeaders(player: Player) {
   return { "x-mymemo-player": player };
+}
+
+function readHints(player: Player) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
 }
 
 async function request<T>(path: string, options: RequestInit = {}, player: Player = "player-one"): Promise<T> {
@@ -77,7 +87,8 @@ function App() {
   const [dark, setDark] = useState(localStorage.getItem("mymemo-theme") === "dark");
   const [lists, setLists] = useState<List[]>([]);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [view, setView] = useState<"play" | "dashboard" | "import" | "manage">("play");
+  const [view, setView] = useState<View>("play");
+  const [hints, setHints] = useState<Hint[]>(() => readHints(player));
   const [toast, setToast] = useState("");
 
   useEffect(() => {
@@ -87,8 +98,13 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem("mymemo-player", player);
+    setHints(readHints(player));
     refresh();
   }, [player]);
+
+  useEffect(() => {
+    localStorage.setItem(`mymemo-hints-${player}`, JSON.stringify(hints));
+  }, [hints, player]);
 
   useEffect(() => {
     if (player !== "israel" && (view === "import" || view === "manage")) setView("play");
@@ -125,13 +141,15 @@ function App() {
       <nav className="tabs">
         <button className={view === "play" ? "active" : ""} onClick={() => setView("play")}><BookOpen /> Jogar</button>
         <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}><BarChart3 /> Dashboard</button>
+        <button className={view === "hints" ? "active" : ""} onClick={() => setView("hints")}><Lightbulb /> Dicas</button>
         {player === "israel" && <button className={view === "import" ? "active" : ""} onClick={() => setView("import")}><Upload /> Importar arquivos</button>}
         {player === "israel" && <button className={view === "manage" ? "active" : ""} onClick={() => setView("manage")}><Edit3 /> Listas</button>}
       </nav>
 
       {toast && <div className="toast"><Trophy /> {toast}</div>}
-      {view === "play" && <Play lists={lists} player={player} refresh={refresh} celebrate={celebrate} />}
+      {view === "play" && <Play lists={lists} player={player} hints={hints} setHints={setHints} refresh={refresh} celebrate={celebrate} />}
       {view === "dashboard" && dashboard && <DashboardView data={dashboard} />}
+      {view === "hints" && <HintsView hints={hints} setHints={setHints} />}
       {view === "import" && player === "israel" && <ImportFiles lists={lists} player={player} refresh={refresh} celebrate={celebrate} />}
       {view === "manage" && player === "israel" && <Manage lists={lists} player={player} refresh={refresh} celebrate={celebrate} />}
     </main>
@@ -290,7 +308,21 @@ function SelectableFlashcard({
   );
 }
 
-function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Player; refresh: () => Promise<void>; celebrate: (message: string) => void }) {
+function Play({
+  lists,
+  player,
+  hints,
+  setHints,
+  refresh,
+  celebrate
+}: {
+  lists: List[];
+  player: Player;
+  hints: Hint[];
+  setHints: React.Dispatch<React.SetStateAction<Hint[]>>;
+  refresh: () => Promise<void>;
+  celebrate: (message: string) => void;
+}) {
   const [listId, setListId] = useState("");
   const [mode, setMode] = useState<GameMode>("BASE");
   const [direction, setDirection] = useState<Direction>("FRONT");
@@ -305,32 +337,12 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
   const [hintModalOffset, setHintModalOffset] = useState({ x: 0, y: 0 });
   const hintModalRef = useRef<HTMLElement>(null);
   const hintDragRef = useRef<{ pointerId: number; x: number; y: number; offsetX: number; offsetY: number } | null>(null);
-  const [hints, setHints] = useState<Hint[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
-    } catch {
-      return [];
-    }
-  });
   const [newHint, setNewHint] = useState("");
   const activeList = lists.find((list) => list.id === listId);
   const card = cards[index];
   const written = mode.includes("WRITTEN");
   const cardHints = card ? hints.filter((hint) => hint.cardId === card.id) : [];
   const visibleHints = hintTab === "CARD" ? cardHints : hints;
-
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
-      setHints(Array.isArray(saved) ? saved : []);
-    } catch {
-      setHints([]);
-    }
-  }, [player]);
-
-  useEffect(() => {
-    localStorage.setItem(`mymemo-hints-${player}`, JSON.stringify(hints));
-  }, [hints, player]);
 
   useEffect(() => {
     if (!listId && lists[0]) setListId(lists[0].id);
@@ -557,6 +569,93 @@ function Play({ lists, player, refresh, celebrate }: { lists: List[]; player: Pl
           </section>
         </div>
       )}
+    </section>
+  );
+}
+
+function HintsView({ hints, setHints }: { hints: Hint[]; setHints: React.Dispatch<React.SetStateAction<Hint[]>> }) {
+  const [selectedId, setSelectedId] = useState("");
+  const [flipped, setFlipped] = useState(false);
+  const selectedHint = hints.find((hint) => hint.id === selectedId) ?? hints[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedHint) {
+      setSelectedId("");
+      return;
+    }
+    if (selectedHint.id !== selectedId) setSelectedId(selectedHint.id);
+  }, [selectedHint, selectedId]);
+
+  function updateHint(id: string, text: string) {
+    setHints((current) => current.map((hint) => hint.id === id ? { ...hint, text } : hint));
+  }
+
+  function deleteHint(id: string) {
+    setHints((current) => current.filter((hint) => hint.id !== id));
+  }
+
+  function selectHint(id: string) {
+    setSelectedId(id);
+    setFlipped(false);
+  }
+
+  return (
+    <section className="hints-page">
+      <div className="panel hints-list-panel">
+        <div className="panel-title">
+          <strong>Dicas</strong>
+          <small>{hints.length ? `${hints.length} dica${hints.length === 1 ? "" : "s"} salva${hints.length === 1 ? "" : "s"}` : "Nenhuma dica salva"}</small>
+        </div>
+        <div className="global-hint-list">
+          {hints.length === 0 && <div className="empty hint-empty"><Lightbulb /> Nenhuma dica criada ainda.</div>}
+          {hints.map((hint) => (
+            <button
+              key={hint.id}
+              className={`global-hint-item ${selectedHint?.id === hint.id ? "active" : ""}`}
+              onClick={() => selectHint(hint.id)}
+            >
+              <span>{hint.text || "Dica sem texto"}</span>
+              <small>{hint.cardId ? hint.cardFront ?? "Card sem frente" : "Dica antiga sem card vinculado"}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <aside className="panel hint-detail-panel">
+        {!selectedHint && (
+          <div className="empty hint-empty"><Lightbulb /> Crie uma dica durante o jogo para visualizar o card aqui.</div>
+        )}
+        {selectedHint && (
+          <>
+            <div className="panel-title">
+              <div>
+                <strong>Dica selecionada</strong>
+                <small>{selectedHint.cardId ? "Card vinculado" : "Sem card vinculado"}</small>
+              </div>
+              <button className="danger ghostline hint-delete" title="Apagar dica" onClick={() => deleteHint(selectedHint.id)}><Trash2 /></button>
+            </div>
+            <textarea
+              className="global-hint-text"
+              aria-label="Texto da dica selecionada"
+              value={selectedHint.text}
+              onChange={(event) => updateHint(selectedHint.id, event.target.value)}
+            />
+            {selectedHint.cardId ? (
+              <div className="hint-card-preview">
+                <SelectableFlashcard
+                  flipped={flipped}
+                  front={selectedHint.cardFront ?? "Card sem frente"}
+                  back={selectedHint.cardBack ?? "Card sem verso"}
+                  onFlip={() => setFlipped((value) => !value)}
+                />
+                <small className="card-preview-hint">{flipped ? "Clique para ver a frente" : "Clique para ver o verso"}</small>
+              </div>
+            ) : (
+              <div className="empty hint-empty"><BookOpen /> Esta dica foi criada antes de salvar o card vinculado.</div>
+            )}
+          </>
+        )}
+      </aside>
     </section>
   );
 }
