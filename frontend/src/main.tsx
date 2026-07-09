@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Download,
   Edit3,
+  FileText,
   Flame,
   Lightbulb,
   LogIn,
@@ -25,11 +26,10 @@ import {
   Upload,
   X
 } from "lucide-react";
+import { request, type Player } from "./api";
+import { TranscriptionsView } from "./features/transcriptions/TranscriptionsView";
 import "./styles.css";
 
-const API = import.meta.env.VITE_API_URL ?? "/api";
-
-type Player = "player-one" | "israel";
 type Direction = "FRONT" | "BACK";
 type GameMode = "BASE" | "SPACED_LIST" | "SPACED_GLOBAL" | "BASE_WRITTEN" | "SPACED_LIST_WRITTEN" | "SPACED_GLOBAL_WRITTEN";
 type Card = { id: string; front: string; back: string; listId: string; list?: List };
@@ -48,7 +48,7 @@ type Dashboard = {
   goals: { id: string; target: number; achievedAt?: string; list?: List | null; user: { displayName: string } }[];
   ranking: { topPlayed: RankCard[]; topWrong: RankCard[]; hardestLists: RankList[] };
 };
-type View = "play" | "dashboard" | "hints" | "import" | "manage";
+type View = "play" | "dashboard" | "hints" | "import" | "manage" | "transcriptions";
 
 const modes: { id: GameMode; label: string; short: string }[] = [
   { id: "BASE", label: "Base", short: "Clique" },
@@ -59,10 +59,6 @@ const modes: { id: GameMode; label: string; short: string }[] = [
   { id: "SPACED_GLOBAL_WRITTEN", label: "Spaced Geral Escrita", short: "Escrita" }
 ];
 
-function authHeaders(player: Player) {
-  return { "x-mymemo-player": player };
-}
-
 function readHints(player: Player) {
   try {
     const saved = JSON.parse(localStorage.getItem(`mymemo-hints-${player}`) ?? "[]") as Hint[];
@@ -70,16 +66,6 @@ function readHints(player: Player) {
   } catch {
     return [];
   }
-}
-
-async function request<T>(path: string, options: RequestInit = {}, player: Player = "player-one"): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    ...options,
-    headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...authHeaders(player), ...options.headers }
-  });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? "Erro na API.");
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }
 
 function App() {
@@ -107,7 +93,7 @@ function App() {
   }, [hints, player]);
 
   useEffect(() => {
-    if (player !== "israel" && (view === "import" || view === "manage")) setView("play");
+    if (player !== "israel" && (view === "import" || view === "manage" || view === "transcriptions")) setView("play");
   }, [player, view]);
 
   async function refresh() {
@@ -142,6 +128,7 @@ function App() {
         <button className={view === "play" ? "active" : ""} onClick={() => setView("play")}><BookOpen /> Jogar</button>
         <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}><BarChart3 /> Dashboard</button>
         <button className={view === "hints" ? "active" : ""} onClick={() => setView("hints")}><Lightbulb /> Dicas</button>
+        {player === "israel" && <button className={view === "transcriptions" ? "active" : ""} onClick={() => setView("transcriptions")}><FileText /> Transcrições</button>}
         {player === "israel" && <button className={view === "import" ? "active" : ""} onClick={() => setView("import")}><Upload /> Importar arquivos</button>}
         {player === "israel" && <button className={view === "manage" ? "active" : ""} onClick={() => setView("manage")}><Edit3 /> Listas</button>}
       </nav>
@@ -150,6 +137,7 @@ function App() {
       {view === "play" && <Play lists={lists} player={player} hints={hints} setHints={setHints} refresh={refresh} celebrate={celebrate} />}
       {view === "dashboard" && dashboard && <DashboardView data={dashboard} />}
       {view === "hints" && <HintsView hints={hints} setHints={setHints} />}
+      {view === "transcriptions" && player === "israel" && <TranscriptionsView player={player} refresh={refresh} celebrate={celebrate} />}
       {view === "import" && player === "israel" && <ImportFiles lists={lists} player={player} refresh={refresh} celebrate={celebrate} />}
       {view === "manage" && player === "israel" && <Manage lists={lists} player={player} refresh={refresh} celebrate={celebrate} />}
     </main>

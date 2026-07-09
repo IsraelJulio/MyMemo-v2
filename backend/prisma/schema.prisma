@@ -26,6 +26,18 @@ enum GameMode {
   SPACED_GLOBAL_WRITTEN
 }
 
+enum TranscriptionStatus {
+  PENDING
+  DOWNLOADING
+  CONVERTING
+  TRANSCRIBING
+  SEGMENTING
+  TRANSLATING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
 model User {
   id                  String              @id @default(cuid())
   displayName         String              @unique
@@ -34,6 +46,7 @@ model User {
   sessions            GameSession[]
   goals               Goal[]
   achievementUnlocks  AchievementUnlock[]
+  transcriptionJobs   TranscriptionJob[]
 }
 
 model StudyList {
@@ -108,4 +121,47 @@ model AchievementUnlock {
   user          User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, achievementId])
+}
+
+model TranscriptionJob {
+  id               String              @id @default(cuid())
+  userId           String
+  sourceUrl        String
+  sourceUrlHash    String
+  sourceTitle      String?
+  sourceLanguage   String?
+  detectedLanguage String?
+  targetLanguage   String              @default("pt-BR")
+  status           TranscriptionStatus @default(PENDING)
+  progress         Int                 @default(0)
+  errorMessage     String?
+  createdAt        DateTime            @default(now())
+  startedAt        DateTime?
+  finishedAt       DateTime?
+
+  user             User                @relation(fields: [userId], references: [id])
+  blocks           TranscriptBlock[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([sourceUrlHash])
+  @@index([createdAt])
+}
+
+model TranscriptBlock {
+  id                 String           @id @default(cuid())
+  transcriptionJobId String
+  order              Int
+  startMs            Int?
+  endMs              Int?
+  originalText       String
+  translatedText     String?
+  confidence         Float?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  job                TranscriptionJob @relation(fields: [transcriptionJobId], references: [id], onDelete: Cascade)
+
+  @@index([transcriptionJobId])
+  @@unique([transcriptionJobId, order])
 }

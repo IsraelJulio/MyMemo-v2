@@ -7,7 +7,10 @@
     "dev": "node scripts/dev.mjs",
     "build": "npm run build --prefix backend && npm run build --prefix frontend",
     "db:migrate": "npm run prisma:migrate --prefix backend",
-    "db:seed": "npm run prisma:seed --prefix backend"
+    "db:seed": "npm run prisma:seed --prefix backend",
+    "worker:install": "python -m pip install -U -r worker-ai/requirements.txt",
+    "worker:argos:install": "python worker-ai/install_argos_package.py",
+    "worker:dev": "python worker-ai/main.py"
   },
   "devDependencies": {}
 }

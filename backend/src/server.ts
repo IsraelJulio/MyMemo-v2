@@ -8,6 +8,7 @@ import { currentUser, requireIsrael } from "./auth.js";
 import { prisma } from "./prisma.js";
 import { achievements, evaluateAchievements, unlockForImport } from "./achievements.js";
 import { scoreAnswers, shouldApplyAntiGrind } from "./scoring.js";
+import { registerTranscriptionRoutes } from "./modules/transcriptions/transcriptions.routes.js";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -24,6 +25,7 @@ app.use(cors({
   }
 }));
 app.use(express.json({ limit: "2mb" }));
+registerTranscriptionRoutes(app);
 
 function shuffle<T>(rows: T[]) {
   return rows.map((value) => ({ value, sort: Math.random() })).sort((a, b) => a.sort - b.sort).map(({ value }) => value);

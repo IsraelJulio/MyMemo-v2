@@ -1,0 +1,6 @@
+python-dotenv
+psycopg[binary]
+yt-dlp
+faster-whisper
+argostranslate
+certifi

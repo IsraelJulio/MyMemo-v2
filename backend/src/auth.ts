@@ -10,7 +10,7 @@ export async function currentUser(req: Request) {
 export async function requireIsrael(req: Request, res: Response, next: NextFunction) {
   const user = await currentUser(req);
   if (user.role !== "ISRAEL") {
-    res.status(403).json({ message: "Somente Israel pode gerenciar listas e metas." });
+    res.status(403).json({ message: "Somente Israel pode gerenciar recursos administrativos." });
     return;
   }
   next();

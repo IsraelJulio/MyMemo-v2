@@ -49,6 +49,73 @@ Depois acesse:
 - Frontend: http://localhost:5173
 - API: http://localhost:4000/api
 
+## Transcrições por URL
+
+A area `Transcrições` permite que Israel crie jobs assíncronos a partir de uma URL publica de video ou audio. O Express apenas cria e consulta jobs; o processamento pesado roda no worker Python separado em `worker-ai/`.
+
+1. Rode a migration e seed normalmente:
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+2. Configure as variaveis do backend em `backend/.env`:
+
+```env
+TRANSCRIPTION_MAX_PENDING_PER_USER=3
+TRANSCRIPTION_MAX_URL_LENGTH=2000
+TRANSCRIPTION_ALLOWED_TARGET_LANGUAGES="pt-BR,en,es"
+TRANSCRIPTION_CREATE_LIST_MAX_BLOCKS=300
+```
+
+3. Instale o FFmpeg no sistema operacional e garanta que `ffmpeg` esteja no `PATH`.
+
+- Windows com Chocolatey: `choco install ffmpeg -y`
+- Windows com winget: `winget install Gyan.FFmpeg`
+- macOS: `brew install ffmpeg`
+- Linux: `sudo apt install ffmpeg`
+
+No Windows, feche e abra o PowerShell depois da instalacao e valide com `where.exe ffmpeg`. Se o executavel existir mas nao estiver no `PATH`, configure `FFMPEG_BINARY=C:\caminho\para\ffmpeg.exe` no `worker-ai/.env`.
+
+4. Configure o worker:
+
+```bash
+cp worker-ai/.env.example worker-ai/.env
+npm run worker:install
+npm run worker:argos:install
+```
+
+5. Suba backend e frontend:
+
+```bash
+npm run dev
+```
+
+6. Em outro terminal, rode o worker:
+
+```bash
+npm run worker:dev
+```
+
+O worker usa `yt-dlp`, FFmpeg, `faster-whisper` e Argos Translate localmente. No pip, o pacote do Argos Translate se chama `argostranslate`. Instale tambem o pacote de idiomas do Argos necessario, inicialmente `en -> pt`, antes de processar jobs reais.
+
+Se o `yt-dlp` falhar com `CERTIFICATE_VERIFY_FAILED`, rode `npm run worker:install` para instalar `certifi`. Em redes com proxy corporativo, configure `YTDLP_CA_CERTS` no `worker-ai/.env` apontando para o certificado raiz em PEM. Para desenvolvimento local, existe `YTDLP_NO_CHECK_CERTIFICATE=true` como ultimo recurso; no PowerShell use `$env:YTDLP_NO_CHECK_CERTIFICATE="true"` antes de iniciar o worker.
+
+Se o `yt-dlp` falhar com `HTTP Error 403: Forbidden`, atualize as dependencias com `npm run worker:install` e tente configurar `YTDLP_YOUTUBE_PLAYER_CLIENTS=mweb,android,web_safari,tv` no `worker-ai/.env`. O script `worker:install` usa `pip install -U`, entao tambem atualiza o `yt-dlp`. O worker continua sem usar cookies ou login.
+
+Se o `faster-whisper` falhar ao baixar o modelo com `CERTIFICATE_VERIFY_FAILED` no Hugging Face Hub, configure `HF_CA_CERTS` no `worker-ai/.env` apontando para o certificado raiz em PEM. Para desenvolvimento local confiavel, use `HF_NO_CHECK_CERTIFICATE=true`. O modelo fica em `worker-ai/.models` quando `WHISPER_DOWNLOAD_ROOT=.models`.
+
+Se a traducao falhar baixando `stanfordnlp/stanza-en/.../combined.pt`, e o Stanza usado pelo Argos Translate. Configure `ARGOS_CA_CERTS` ou `HF_CA_CERTS` com o certificado raiz em PEM. Para desenvolvimento local confiavel, `ARGOS_NO_CHECK_CERTIFICATE=true` ou `HF_NO_CHECK_CERTIFICATE=true` desativa essa verificacao tambem.
+
+Limitacoes da primeira versao:
+
+- Apenas Israel pode criar jobs, editar blocos e gerar listas.
+- Sao aceitas apenas URLs publicas `http` e `https`; localhost e IPs privados sao bloqueados.
+- O worker nao usa cookies, login, paywall ou APIs pagas.
+- Videos muito longos sao recusados pelo limite `MAX_MEDIA_DURATION_SECONDS`.
+- A traducao depende de pacotes Argos instalados localmente.
+
 ## Novidades recentes
 
 - Tema claro e escuro com preferencia salva no navegador.
