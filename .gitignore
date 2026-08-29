@@ -7,3 +7,5 @@ worker-ai/.env
 worker-ai/.tmp/
 worker-ai/.models/
 worker-ai/models/
+worker-ai/__pycache__/
+*.py[cod]

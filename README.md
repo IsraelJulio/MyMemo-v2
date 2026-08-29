@@ -4,7 +4,7 @@ MyMemo e um app web mobile-first de estudos por flash cards com perfil gamificad
 
 ## Requisitos
 
-- Node.js 22+ recomendado
+- Node.js 22.15+ recomendado
 - npm 10+
 - PostgreSQL 14+
 
@@ -167,10 +167,8 @@ Israel pode importar para uma lista nova ou adicionar os cards a uma lista exist
 
 ## Troubleshooting
 
-Se `prisma generate` falhar com erro de certificado ao baixar engines da Prisma, rode apenas esse comando:
+Os scripts do Prisma usam o repositorio de certificados confiaveis do sistema operacional. Isso evita erros como `unable to get local issuer certificate` ao baixar os engines em redes com proxy corporativo.
 
-```powershell
-$env:NODE_TLS_REJECT_UNAUTHORIZED='0'; npm run prisma:generate --prefix backend
-```
+Se o certificado raiz da empresa ainda nao estiver instalado, importe-o no repositorio de certificados confiaveis do sistema operacional e execute novamente `npm run db:migrate`.
 
-Use isso somente se a cadeia de certificados local bloquear o download.
+Nao desative a validacao TLS com `NODE_TLS_REJECT_UNAUTHORIZED=0`.
