@@ -321,6 +321,7 @@ function Play({
   const [typed, setTyped] = useState("");
   const [answers, setAnswers] = useState<{ cardId: string; correct: boolean }[]>([]);
   const [hintsOpen, setHintsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [hintTab, setHintTab] = useState<"CARD" | "ALL">("CARD");
   const [hintModalOffset, setHintModalOffset] = useState({ x: 0, y: 0 });
   const hintModalRef = useRef<HTMLElement>(null);
@@ -430,7 +431,25 @@ function Play({
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
+  async function submitSession(finalAnswers: { cardId: string; correct: boolean }[]) {
+    if (!finalAnswers.length || saving) return;
+    const lastCard = cards.find((item) => item.id === finalAnswers[finalAnswers.length - 1].cardId);
+    setSaving(true);
+    try {
+      const result = await request<{ session: Session; unlocked: unknown[] }>("/sessions", {
+        method: "POST",
+        body: JSON.stringify({ listId: lastCard?.listId ?? listId, listTitle: activeList?.title ?? lastCard?.list?.title, mode, direction, answers: finalAnswers })
+      }, player);
+      closeGame();
+      await refresh();
+      celebrate(`${result.session.points} pontos, ${result.session.accuracy}% de acerto`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function answer(correct: boolean) {
+    if (saving) return;
     const nextAnswers = [...answers, { cardId: card.id, correct }];
     if (index < cards.length - 1) {
       setAnswers(nextAnswers);
@@ -440,14 +459,7 @@ function Play({
       setTyped("");
       return;
     }
-    const result = await request<{ session: Session; unlocked: unknown[] }>("/sessions", {
-      method: "POST",
-      body: JSON.stringify({ listId: card.listId ?? listId, listTitle: activeList?.title ?? card.list?.title, mode, direction, answers: nextAnswers })
-    }, player);
-    setCards([]);
-    setShowAnswerSide(false);
-    await refresh();
-    celebrate(`${result.session.points} pontos, ${result.session.accuracy}% de acerto`);
+    await submitSession(nextAnswers);
   }
 
   return (
@@ -473,7 +485,17 @@ function Play({
           <>
             <div className="session-header">
               <div className="session-meta"><span>{index + 1}/{cards.length}</span><span>{modeLabel(mode)}</span><span>{direction === "FRONT" ? "Frente" : "Verso"}</span></div>
-              <button className="danger close-game" onClick={closeGame}><X /> Fechar jogo</button>
+              <div className="session-header-actions">
+                <button
+                  className="success finish-game"
+                  disabled={!answers.length || saving}
+                  title={answers.length ? `Encerrar e salvar com ${answers.length} card${answers.length === 1 ? "" : "s"}` : "Responda ao menos um card para finalizar"}
+                  onClick={() => submitSession(answers)}
+                >
+                  <Trophy /> Finalizar jogo{answers.length ? ` (${answers.length})` : ""}
+                </button>
+                <button className="danger close-game" disabled={saving} onClick={closeGame}><X /> Fechar jogo</button>
+              </div>
             </div>
             <SelectableFlashcard
               flipped={showAnswerSide}

@@ -372,7 +372,16 @@ textarea {
   flex: 1;
 }
 
-.session-header .close-game {
+.session-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.session-header .close-game,
+.session-header .finish-game {
   flex: 0 0 auto;
 }
 
