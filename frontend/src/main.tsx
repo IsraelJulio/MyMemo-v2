@@ -362,7 +362,7 @@ function Play({
     setTyped("");
   }
 
-  function closeGame() {
+  function resetGame() {
     setCards([]);
     setIndex(0);
     setAnswers([]);
@@ -440,12 +440,20 @@ function Play({
         method: "POST",
         body: JSON.stringify({ listId: lastCard?.listId ?? listId, listTitle: activeList?.title ?? lastCard?.list?.title, mode, direction, answers: finalAnswers })
       }, player);
-      closeGame();
+      resetGame();
       await refresh();
       celebrate(`${result.session.points} pontos, ${result.session.accuracy}% de acerto`);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function closeGame() {
+    if (answers.length) {
+      await submitSession(answers);
+      return;
+    }
+    resetGame();
   }
 
   async function answer(correct: boolean) {
@@ -494,7 +502,14 @@ function Play({
                 >
                   <Trophy /> Finalizar jogo{answers.length ? ` (${answers.length})` : ""}
                 </button>
-                <button className="danger close-game" disabled={saving} onClick={closeGame}><X /> Fechar jogo</button>
+                <button
+                  className="danger close-game"
+                  disabled={saving}
+                  title={answers.length ? `Fechar e salvar ${answers.length} resposta${answers.length === 1 ? "" : "s"}` : "Fechar jogo"}
+                  onClick={() => void closeGame()}
+                >
+                  <X /> Fechar jogo
+                </button>
               </div>
             </div>
             <SelectableFlashcard
