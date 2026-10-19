@@ -90,12 +90,11 @@ export async function updateTranscriptBlock(userId: string, blockId: string, inp
 
 export async function createListFromTranscription(userId: string, jobId: string, input: CreateListFromTranscriptionInput) {
   const { title, mode } = validateCreateListInput(input);
-  const { createListMaxBlocks } = transcriptionConfig();
 
   return prisma.$transaction(async (tx) => {
     const job = await tx.transcriptionJob.findFirst({
       where: { id: jobId, userId },
-      include: { blocks: { orderBy: { order: "asc" }, take: createListMaxBlocks + 1 } }
+      include: { blocks: { orderBy: { order: "asc" } } }
     });
 
     if (!job) requestError(404, "Transcricao nao encontrada.");
@@ -109,7 +108,6 @@ export async function createListFromTranscription(userId: string, jobId: string,
       .filter((block) => block.originalText && block.translatedText);
 
     if (!blocks.length) requestError(400, "Nao ha blocos com texto original e traducao para criar cards.");
-    if (blocks.length > createListMaxBlocks) requestError(400, `Selecione no maximo ${createListMaxBlocks} blocos para criar cards.`);
 
     const list = await tx.studyList.create({
       data: {

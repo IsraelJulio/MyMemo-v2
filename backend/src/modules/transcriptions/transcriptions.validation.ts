@@ -22,8 +22,7 @@ export function transcriptionConfig() {
   return {
     maxPendingPerUser: readInt("TRANSCRIPTION_MAX_PENDING_PER_USER", 3),
     maxUrlLength: readInt("TRANSCRIPTION_MAX_URL_LENGTH", 2000),
-    allowedTargetLanguages: readCsv("TRANSCRIPTION_ALLOWED_TARGET_LANGUAGES", defaultTargetLanguages),
-    createListMaxBlocks: readInt("TRANSCRIPTION_CREATE_LIST_MAX_BLOCKS", 300)
+    allowedTargetLanguages: readCsv("TRANSCRIPTION_ALLOWED_TARGET_LANGUAGES", defaultTargetLanguages)
   };
 }
 

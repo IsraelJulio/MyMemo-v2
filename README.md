@@ -66,7 +66,6 @@ npm run db:seed
 TRANSCRIPTION_MAX_PENDING_PER_USER=3
 TRANSCRIPTION_MAX_URL_LENGTH=2000
 TRANSCRIPTION_ALLOWED_TARGET_LANGUAGES="pt-BR,en,es"
-TRANSCRIPTION_CREATE_LIST_MAX_BLOCKS=300
 ```
 
 3. Instale o FFmpeg no sistema operacional e garanta que `ffmpeg` esteja no `PATH`.
