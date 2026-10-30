@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import confetti from "canvas-confetti";
 import {
@@ -16,6 +17,7 @@ import {
   LogIn,
   LogOut,
   Medal,
+  MessageCircle,
   Moon,
   Plus,
   RotateCcw,
@@ -35,7 +37,8 @@ type GameMode = "BASE" | "SPACED_LIST" | "SPACED_GLOBAL" | "BASE_WRITTEN" | "SPA
 type Card = { id: string; front: string; back: string; listId: string; list?: List };
 type List = { id: string; title: string; color: string; _count?: { cards: number }; cards?: Card[] };
 type Session = { id: string; listTitle: string; mode: GameMode; direction: Direction; points: number; accuracy: number; playedAt: string; user: { displayName: string }; correctCount: number; totalCount: number; antiGrind: boolean };
-type Hint = { id: string; text: string; cardId?: string; cardFront?: string; cardBack?: string };
+type HintAnchor = { side: Direction; start: number; end: number; text: string };
+type Hint = { id: string; text: string; cardId?: string; cardFront?: string; cardBack?: string; anchor?: HintAnchor };
 type RankCard = { front: string; back: string; listTitle: string; count: number };
 type RankList = { title: string; accuracy: number; sessionCount: number };
 type Dashboard = {
@@ -175,9 +178,20 @@ function LoginButton({ player, setPlayer }: { player: Player; setPlayer: (player
   );
 }
 
-function AutoFitText({ children }: { children: string }) {
+function AutoFitText({
+  children,
+  fitKey,
+  textRef: externalTextRef,
+  textProps
+}: {
+  children: React.ReactNode;
+  fitKey: string;
+  textRef?: React.RefObject<HTMLSpanElement | null>;
+  textProps?: React.HTMLAttributes<HTMLSpanElement>;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLSpanElement>(null);
+  const ownTextRef = useRef<HTMLSpanElement>(null);
+  const textRef = externalTextRef ?? ownTextRef;
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -216,12 +230,185 @@ function AutoFitText({ children }: { children: string }) {
       active = false;
       resizeObserver.disconnect();
     };
-  }, [children]);
+  }, [fitKey]);
 
   return (
     <div className="face-content" ref={containerRef}>
-      <span ref={textRef}>{children}</span>
+      <span ref={textRef} {...textProps}>{children}</span>
     </div>
+  );
+}
+
+type AnchorMatch = { hint: Hint; start: number; end: number };
+
+function resolveAnchors(text: string, hints: Hint[], side: Direction): AnchorMatch[] {
+  const found: AnchorMatch[] = [];
+  for (const hint of hints) {
+    const anchor = hint.anchor;
+    if (!anchor || anchor.side !== side || !anchor.text) continue;
+    let start = anchor.start;
+    if (text.slice(anchor.start, anchor.end) !== anchor.text) {
+      start = text.indexOf(anchor.text);
+      if (start < 0) continue;
+    }
+    found.push({ hint, start, end: start + anchor.text.length });
+  }
+  found.sort((a, b) => a.start - b.start);
+  const result: AnchorMatch[] = [];
+  let last = 0;
+  for (const item of found) {
+    if (item.start < last) continue;
+    result.push(item);
+    last = item.end;
+  }
+  return result;
+}
+
+function HintedText({
+  text,
+  side,
+  hints,
+  onCreateHint
+}: {
+  text: string;
+  side: Direction;
+  hints: Hint[];
+  onCreateHint?: (anchor: HintAnchor, hintText: string) => void;
+}) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState<{ text: string; rect: DOMRect } | null>(null);
+  const [draft, setDraft] = useState<{ anchor: HintAnchor; rect: DOMRect; value: string } | null>(null);
+  const matches = useMemo(() => resolveAnchors(text, hints, side), [text, hints, side]);
+  const fitKey = `${text}|${matches.map((match) => `${match.start}-${match.end}`).join(",")}`;
+
+  useEffect(() => {
+    if (!draft) return;
+    const close = (event: PointerEvent) => {
+      if (popoverRef.current && event.target instanceof Node && popoverRef.current.contains(event.target)) return;
+      setDraft(null);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [draft !== null]);
+
+  function handleSelectionEnd() {
+    if (!onCreateHint) return;
+    window.setTimeout(() => {
+      const container = textRef.current;
+      const selection = window.getSelection();
+      if (!container || !selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+      const range = selection.getRangeAt(0);
+      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return;
+
+      const before = document.createRange();
+      before.selectNodeContents(container);
+      before.setEnd(range.startContainer, range.startOffset);
+      const raw = range.toString();
+      const leading = raw.length - raw.trimStart().length;
+      const selected = raw.trim();
+      if (!selected) return;
+      const start = before.toString().length + leading;
+      const end = start + selected.length;
+      if (text.slice(start, end) !== selected) return;
+      if (matches.some((match) => start < match.end && end > match.start)) return;
+
+      setTooltip(null);
+      setDraft({ anchor: { side, start, end, text: selected }, rect: range.getBoundingClientRect(), value: "" });
+    }, 10);
+  }
+
+  function saveDraft() {
+    if (!draft || !onCreateHint) return;
+    const value = draft.value.trim();
+    if (!value) return;
+    onCreateHint(draft.anchor, value);
+    setDraft(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
+  const segments: React.ReactNode[] = [];
+  let cursor = 0;
+  matches.forEach((match) => {
+    if (match.start > cursor) segments.push(text.slice(cursor, match.start));
+    const show = (event: React.SyntheticEvent<HTMLElement>) => setTooltip({ text: match.hint.text, rect: event.currentTarget.getBoundingClientRect() });
+    segments.push(
+      <span
+        key={match.hint.id}
+        className="hint-anchor"
+        tabIndex={0}
+        onMouseEnter={show}
+        onMouseLeave={() => setTooltip(null)}
+        onFocus={show}
+        onBlur={() => setTooltip(null)}
+        onPointerUp={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        {text.slice(match.start, match.end)}
+        <MessageCircle className="hint-anchor-icon" aria-hidden="true" />
+      </span>
+    );
+    cursor = match.end;
+  });
+  if (cursor < text.length) segments.push(text.slice(cursor));
+
+  const popoverWidth = 280;
+  const popoverStyle: React.CSSProperties | undefined = draft ? {
+    left: Math.min(Math.max(8, draft.rect.left + draft.rect.width / 2 - popoverWidth / 2), Math.max(8, window.innerWidth - popoverWidth - 8)),
+    top: draft.rect.bottom + 190 > window.innerHeight ? Math.max(8, draft.rect.top - 182) : draft.rect.bottom + 8
+  } : undefined;
+
+  return (
+    <>
+      <AutoFitText fitKey={fitKey} textRef={textRef} textProps={{ onMouseUp: handleSelectionEnd, onTouchEnd: handleSelectionEnd }}>{segments}</AutoFitText>
+      {tooltip && createPortal(
+        <div
+          className="hint-tooltip"
+          role="tooltip"
+          style={{ left: Math.min(Math.max(130, tooltip.rect.left + tooltip.rect.width / 2), window.innerWidth - 130), top: tooltip.rect.top - 8 }}
+        >
+          {tooltip.text}
+        </div>,
+        document.body
+      )}
+      {draft && createPortal(
+        <div
+          ref={popoverRef}
+          className="hint-popover"
+          role="dialog"
+          aria-label="Nova dica para o trecho"
+          style={popoverStyle}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onMouseUp={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <small className="hint-popover-quote">{draft.anchor.text}</small>
+          <textarea
+            autoFocus
+            aria-label="Dica para o trecho"
+            placeholder="Dica (ex.: tradução)"
+            value={draft.value}
+            onChange={(event) => setDraft({ ...draft, value: event.target.value })}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Escape") setDraft(null);
+              else if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                saveDraft();
+              }
+            }}
+          />
+          <div className="hint-popover-actions">
+            <button className="ghost" onClick={() => setDraft(null)}>Cancelar</button>
+            <button className="primary" disabled={!draft.value.trim()} onClick={saveDraft}>Salvar</button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -239,14 +426,21 @@ function SelectableFlashcard({
   front,
   back,
   onFlip,
-  ariaLabel = "Virar card"
+  ariaLabel = "Virar card",
+  frontSide = "FRONT",
+  hints = [],
+  onCreateHint
 }: {
   flipped: boolean;
   front: string;
   back: string;
   onFlip: () => void;
   ariaLabel?: string;
+  frontSide?: Direction;
+  hints?: Hint[];
+  onCreateHint?: (anchor: HintAnchor, hintText: string) => void;
 }) {
+  const backSide: Direction = frontSide === "FRONT" ? "BACK" : "FRONT";
   const cardRef = useRef<HTMLDivElement>(null);
   const pressRef = useRef<{ pointerId: number; x: number; y: number; startedAt: number } | null>(null);
 
@@ -290,8 +484,8 @@ function SelectableFlashcard({
       onPointerCancel={() => { pressRef.current = null; }}
       onKeyDown={handleKeyDown}
     >
-      <div className="face front"><AutoFitText>{front}</AutoFitText></div>
-      <div className="face back"><AutoFitText>{back}</AutoFitText></div>
+      <div className="face front"><HintedText text={front} side={frontSide} hints={hints} onCreateHint={flipped ? undefined : onCreateHint} /></div>
+      <div className="face back"><HintedText text={back} side={backSide} hints={hints} onCreateHint={flipped ? onCreateHint : undefined} /></div>
     </div>
   );
 }
@@ -372,16 +566,22 @@ function Play({
     setHintsOpen(false);
   }
 
-  function addHint() {
-    const text = newHint.trim();
+  function createHint(text: string, anchor?: HintAnchor) {
     if (!text || !card) return;
     setHints((current) => [{
       id: crypto.randomUUID(),
       text,
       cardId: card.id,
       cardFront: card.front,
-      cardBack: card.back
+      cardBack: card.back,
+      ...(anchor ? { anchor } : {})
     }, ...current]);
+  }
+
+  function addHint() {
+    const text = newHint.trim();
+    if (!text || !card) return;
+    createHint(text);
     setNewHint("");
   }
 
@@ -517,6 +717,9 @@ function Play({
               front={direction === "FRONT" ? card.front : card.back}
               back={direction === "FRONT" ? card.back : card.front}
               onFlip={revealOrSpin}
+              frontSide={direction}
+              hints={cardHints}
+              onCreateHint={(anchor, text) => createHint(text, anchor)}
             />
             {written && <textarea placeholder="Digite sua resposta antes de revelar" value={typed} onChange={(event) => setTyped(event.target.value)} />}
             <div className="study-actions">
@@ -585,6 +788,7 @@ function Play({
                           : "Dica antiga sem card vinculado"}
                       </small>
                     )}
+                    {hint.anchor && <small className="hint-anchor-label">“{hint.anchor.text}” →</small>}
                     <textarea aria-label="Texto da dica" value={hint.text} onChange={(event) => updateHint(hint.id, event.target.value)} />
                   </div>
                   <button className="danger ghostline" title="Apagar dica" onClick={() => deleteHint(hint.id)}><Trash2 /></button>
@@ -639,7 +843,7 @@ function HintsView({ hints, setHints }: { hints: Hint[]; setHints: React.Dispatc
               className={`global-hint-item ${selectedHint?.id === hint.id ? "active" : ""}`}
               onClick={() => selectHint(hint.id)}
             >
-              <span>{hint.text || "Dica sem texto"}</span>
+              <span>{hint.anchor ? `“${hint.anchor.text}” → ` : ""}{hint.text || "Dica sem texto"}</span>
               <small>{hint.cardId ? hint.cardFront ?? "Card sem frente" : "Dica antiga sem card vinculado"}</small>
             </button>
           ))}
@@ -659,6 +863,7 @@ function HintsView({ hints, setHints }: { hints: Hint[]; setHints: React.Dispatc
               </div>
               <button className="danger ghostline hint-delete" title="Apagar dica" onClick={() => deleteHint(selectedHint.id)}><Trash2 /></button>
             </div>
+            {selectedHint.anchor && <small className="hint-anchor-label">“{selectedHint.anchor.text}” →</small>}
             <textarea
               className="global-hint-text"
               aria-label="Texto da dica selecionada"
@@ -672,6 +877,7 @@ function HintsView({ hints, setHints }: { hints: Hint[]; setHints: React.Dispatc
                   front={selectedHint.cardFront ?? "Card sem frente"}
                   back={selectedHint.cardBack ?? "Card sem verso"}
                   onFlip={() => setFlipped((value) => !value)}
+                  hints={hints.filter((hint) => hint.cardId === selectedHint.cardId)}
                 />
                 <small className="card-preview-hint">{flipped ? "Clique para ver a frente" : "Clique para ver o verso"}</small>
               </div>
